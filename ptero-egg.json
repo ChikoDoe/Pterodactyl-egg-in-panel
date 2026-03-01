@@ -14,7 +14,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/ash\napk add --no-cache git curl unzip\ncd /home/container\nif [ ! -d \"/home/container/public\" ]; then\n  git clone https://github.com/pterodactyl/panel.git .\n  export COMPOSER_ALLOW_SUPERUSER=1\n  curl -sS https://getcomposer.org/installer | php\n  php composer.phar install --no-dev --optimize-autoloader\n  cp .env.example .env\nfi\ncurl -o /home/container/start.sh https://raw.githubusercontent.com/username/repo/main/start.sh\nchmod +x /home/container/start.sh",
+            "script": "#!/bin/ash\napk add --no-cache git curl unzip\ncd /home/container\nif [ ! -d \"/home/container/public\" ]; then\n  git clone https://github.com/pterodactyl/panel.git .\n  export COMPOSER_ALLOW_SUPERUSER=1\n  curl -sS https://getcomposer.org/installer | php\n  php composer.phar install --no-dev --optimize-autoloader\n  cp .env.example .env\nfi\ncurl -o /home/container/start.sh https://raw.githubusercontent.com/ChikoDoe/repo/main/start.sh\nchmod +x /home/container/start.sh",
             "container": "ghcr.io/parkervcp/yolks:nginx_php-8.2",
             "entrypoint": "bash"
         }
