@@ -5,20 +5,17 @@
   "exported_at": "2026-03-01T00:00:00+07:00",
   "name": "Pterodactyl Panel Web + CF Tunnel (Hardened) - ChikoDoe",
   "author": "ChikoDoe",
-  "description": "Pterodactyl Panel web-only dengan Cloudflare Tunnel, hardening, read-only FS support, dan tanpa Wings - Created by ChikoDoe",
+  "description": "Pterodactyl Panel web-only dengan Cloudflare Tunnel, hardening, tanpa Wings",
   "features": null,
   "docker_images": {
-    "ghcr.io/parkervcp/yolks:nginx_php-8.2": "Nginx + PHP 8.2 (Hardened)"
+    "Nginx + PHP 8.2 (Hardened)": "ghcr.io/parkervcp/yolks:nginx_php-8.2"
   },
   "file_denylist": [],
   "startup": "bash start.sh",
   "config": {
     "files": {},
-    "startup": "{ \"done\": \"Pterodactyl Panel Web + CF Tunnel started - ChikoDoe\" }",
-    "logs": {
-      "custom": true,
-      "location": "storage/logs/panel.log"
-    },
+    "startup": "{ \"done\": \"Panel started\" }",
+    "logs": {},
     "stop": "exit"
   },
   "scripts": {
@@ -31,156 +28,107 @@
   "variables": [
     {
       "name": "APP URL",
-      "description": "URL lengkap aplikasi (contoh: https://panel.domain.com)",
       "env_variable": "APP_URL",
       "default_value": "http://localhost:8080",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|url"
+      "rules": "required"
     },
     {
       "name": "APP ENV",
-      "description": "Laravel environment (production/local)",
       "env_variable": "APP_ENV",
       "default_value": "production",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|in:local,production"
-    },
-    {
-      "name": "APP KEY",
-      "description": "Laravel APP KEY (akan digenerate otomatis jika kosong)",
-      "env_variable": "APP_KEY",
-      "default_value": "",
-      "user_viewable": false,
-      "user_editable": false,
-      "rules": "nullable|string"
+      "rules": "required"
     },
     {
       "name": "APP DEBUG",
-      "description": "Debug mode (true/false) - Jangan true di production",
       "env_variable": "APP_DEBUG",
       "default_value": "false",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|in:true,false"
+      "rules": "required"
     },
     {
       "name": "DB HOST",
-      "description": "Host database (gunakan host eksternal, jangan localhost)",
       "env_variable": "DB_HOST",
       "default_value": "127.0.0.1",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string"
+      "rules": "required"
     },
     {
       "name": "DB PORT",
-      "description": "Port database (default: 3306 untuk MySQL)",
       "env_variable": "DB_PORT",
       "default_value": "3306",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|numeric|between:1,65535"
+      "rules": "required"
     },
     {
       "name": "DB DATABASE",
-      "description": "Nama database",
       "env_variable": "DB_DATABASE",
       "default_value": "panel",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string"
+      "rules": "required"
     },
     {
       "name": "DB USERNAME",
-      "description": "Username database",
       "env_variable": "DB_USERNAME",
       "default_value": "pterodactyl",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string"
+      "rules": "required"
     },
     {
       "name": "DB PASSWORD",
-      "description": "Password database",
       "env_variable": "DB_PASSWORD",
       "default_value": "",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string"
+      "rules": "required"
     },
     {
       "name": "AUTO MIGRATE",
-      "description": "Jalankan migration otomatis saat startup (true/false)",
       "env_variable": "AUTO_MIGRATE",
       "default_value": "false",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|in:true,false"
+      "rules": "required"
     },
     {
       "name": "CF_TUNNEL_ENABLED",
-      "description": "Aktifkan Cloudflare Tunnel (true/false)",
       "env_variable": "CF_TUNNEL_ENABLED",
       "default_value": "false",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|in:true,false"
+      "rules": "required"
     },
     {
       "name": "CF_TUNNEL_TOKEN",
-      "description": "Token untuk Cloudflare Tunnel (dari Zero Trust dashboard)",
       "env_variable": "CF_TUNNEL_TOKEN",
       "default_value": "",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "nullable|string"
+      "rules": "nullable"
     },
     {
-      "name": "READ_ONLY_FS",
-      "description": "Set true jika container dijalankan dengan read-only root FS",
-      "env_variable": "READ_ONLY_FS",
-      "default_value": "false",
-      "user_viewable": true,
-      "user_editable": true,
-      "rules": "required|in:true,false"
-    },
-    {
-      "name": "WEB_PORT",
-      "description": "Port internal untuk web server (default: 8080)",
+      "name": "WEB PORT",
       "env_variable": "WEB_PORT",
       "default_value": "8080",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|numeric|between:1024,65535"
+      "rules": "required"
     },
     {
       "name": "TIMEZONE",
-      "description": "Timezone untuk aplikasi (contoh: Asia/Jakarta)",
       "env_variable": "TZ",
       "default_value": "Asia/Jakarta",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string"
-    },
-    {
-      "name": "PHP_MEMORY_LIMIT",
-      "description": "Memory limit untuk PHP (contoh: 256M)",
-      "env_variable": "PHP_MEMORY_LIMIT",
-      "default_value": "256M",
-      "user_viewable": true,
-      "user_editable": true,
-      "rules": "required|string"
-    },
-    {
-      "name": "MAX_UPLOAD_SIZE",
-      "description": "Maximum upload file size (contoh: 100M)",
-      "env_variable": "MAX_UPLOAD_SIZE",
-      "default_value": "100M",
-      "user_viewable": true,
-      "user_editable": true,
-      "rules": "required|string"
+      "rules": "required"
     }
   ]
 }
