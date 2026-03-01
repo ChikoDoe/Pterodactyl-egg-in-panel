@@ -1,151 +1,186 @@
 {
-    "author": "user@example.com",
-    "name": "Pterodactyl Panel Web",
-    "description": "Menjalankan Pterodactyl Panel (Laravel) dengan Nginx + PHP-FPM. Tidak termasuk Wings, tidak bisa mengelola host.",
-    "docker_images": {
-        "Nginx PHP 8.2 Alpine": "ghcr.io/parkervcp/yolks:nginx_php-8.2"
+  "meta": {
+    "version": "PTDL_v2"
+  },
+  "exported_at": "2026-03-01T00:00:00+07:00",
+  "name": "Pterodactyl Panel Web + CF Tunnel (Hardened) - ChikoDoe",
+  "author": "ChikoDoe",
+  "description": "Pterodactyl Panel web-only dengan Cloudflare Tunnel, hardening, read-only FS support, dan tanpa Wings - Created by ChikoDoe",
+  "features": null,
+  "docker_images": {
+    "ghcr.io/parkervcp/yolks:nginx_php-8.2": "Nginx + PHP 8.2 (Hardened)"
+  },
+  "file_denylist": [],
+  "startup": "bash start.sh",
+  "config": {
+    "files": {},
+    "startup": "{ \"done\": \"Pterodactyl Panel Web + CF Tunnel started - ChikoDoe\" }",
+    "logs": {
+      "custom": true,
+      "location": "storage/logs/panel.log"
     },
-    "startup": "./start.sh",
-    "config": {
-        "files": {
-            ".env": {
-                "parser": "file",
-                "find": {
-                    "APP_URL=": "{{server.build.default.env.APP_URL}}",
-                    "DB_HOST=": "{{server.build.default.env.DB_HOST}}",
-                    "DB_PORT=": "{{server.build.default.env.DB_PORT}}",
-                    "DB_DATABASE=": "{{server.build.default.env.DB_DATABASE}}",
-                    "DB_USERNAME=": "{{server.build.default.env.DB_USERNAME}}",
-                    "DB_PASSWORD=": "{{server.build.default.env.DB_PASSWORD}}",
-                    "APP_ENV=": "{{server.build.default.env.APP_ENV}}",
-                    "APP_DEBUG=": "{{server.build.default.env.APP_DEBUG}}"
-                }
-            }
-        },
-        "startup": {
-            "done": "Starting nginx..."
-        },
-        "logs": {
-            "custom": true,
-            "location": "logs/panel.log"
-        },
-        "stop": "exit"
+    "stop": "exit"
+  },
+  "scripts": {
+    "installation": {
+      "script": "apk add --no-cache git curl unzip mariadb-client && cd /home/container && if [ ! -f artisan ]; then git clone https://github.com/pterodactyl/panel.git . && curl -sS https://getcomposer.org/installer | php && php composer.phar install --no-dev --optimize-autoloader && cp .env.example .env; fi && curl -fsSL https://raw.githubusercontent.com/ChikoDoe/pterodactyl-egg/main/start-hardened.sh -o start.sh && chmod +x start.sh",
+      "container": "ghcr.io/parkervcp/yolks:nginx_php-8.2",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "APP URL",
+      "description": "URL lengkap aplikasi (contoh: https://panel.domain.com)",
+      "env_variable": "APP_URL",
+      "default_value": "http://localhost:8080",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|url"
     },
-    "scripts": {
-        "installation": {
-            "script": "#!\/bin\/ash\n# Pterodactyl Panel Installation Script\n\napk add --no-cache git curl unzip\n\ncd \/home\/container\n\n# Clone panel jika belum ada\nif [ ! -f \".env\" ]; then\n    echo \"Menginstall Pterodactyl Panel...\"\n    git clone https:\/\/github.com\/pterodactyl\/panel.git .\n    \n    export COMPOSER_ALLOW_SUPERUSER=1\n    curl -sS https:\/\/getcomposer.org\/installer | php\n    php composer.phar install --no-dev --optimize-autoloader\n    \n    cp .env.example .env\n    \n    # Generate key\n    php artisan key:generate --force\nfi\n\n# Buat startup script\necho '#!/bin/bash\ncd /home/container\n\n# Export COMPOSER\nexport COMPOSER_ALLOW_SUPERUSER=1\n\n# Setup Nginx configuration\nmkdir -p /etc/nginx/http.d/\ncat > /etc/nginx/http.d/panel.conf << NGINX_CONF\nserver {\n    listen ${WEB_PORT:-8080};\n    server_name _;\n    root /home/container/public;\n    index index.php index.html;\n\n    access_log /home/container/logs/panel.log;\n    error_log /home/container/logs/error.log;\n\n    location / {\n        try_files $uri $uri/ /index.php?$args;\n    }\n\n    location ~ \\.php$ {\n        fastcgi_pass unix:/run/php-fpm.sock;\n        fastcgi_index index.php;\n        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n        include fastcgi_params;\n    }\n\n    location ~ /\\.ht {\n        deny all;\n    }\n}\nNGINX_CONF\n\n# Setup PHP-FPM\ncat > /usr/local/etc/php-fpm.d/www.conf << PHP_CONF\n[www]\nuser = container\ngroup = container\nlisten = /run/php-fpm.sock\nlisten.owner = container\nlisten.group = container\npm = dynamic\npm.max_children = 10\npm.start_servers = 2\npm.min_spare_servers = 1\npm.max_spare_servers = 5\nPHP_CONF\n\n# Setup direktori\nmkdir -p logs storage storage/logs bootstrap/cache\nchmod -R 755 storage bootstrap/cache\nchmod -R 777 storage/logs logs\n\n# Setup environment variables dari file config\nif [ -f .env ]; then\n    # Update .env dengan environment variables dari panel\n    if [ ! -z \"$APP_URL\" ]; then\n        sed -i \"s|APP_URL=.*|APP_URL=${APP_URL}|\" .env\n    fi\n    if [ ! -z \"$DB_HOST\" ]; then\n        sed -i \"s|DB_HOST=.*|DB_HOST=${DB_HOST}|\" .env\n    fi\n    if [ ! -z \"$DB_PORT\" ]; then\n        sed -i \"s|DB_PORT=.*|DB_PORT=${DB_PORT}|\" .env\n    fi\n    if [ ! -z \"$DB_DATABASE\" ]; then\n        sed -i \"s|DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE}|\" .env\n    fi\n    if [ ! -z \"$DB_USERNAME\" ]; then\n        sed -i \"s|DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME}|\" .env\n    fi\n    if [ ! -z \"$DB_PASSWORD\" ]; then\n        sed -i \"s|DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|\" .env\n    fi\n    if [ ! -z \"$APP_ENV\" ]; then\n        sed -i \"s|APP_ENV=.*|APP_ENV=${APP_ENV}|\" .env\n    fi\n    if [ ! -z \"$APP_DEBUG\" ]; then\n        sed -i \"s|APP_DEBUG=.*|APP_DEBUG=${APP_DEBUG}|\" .env\n    fi\n    \n    # Cache konfigurasi\n    php artisan config:cache\n    php artisan route:cache\n    php artisan view:cache\n    \n    # Jalankan migration jika AUTO_MIGRATION=true\n    if [ \"${AUTO_MIGRATION}\" = \"true\" ]; then\n        php artisan migrate --force\n    fi\nfi\n\n# Start Cloudflare Tunnel jika diaktifkan\nif [ \"${CLOUDFLARE_TUNNEL}\" = \"true\" ] && [ ! -z \"${CLOUDFLARE_TOKEN}\" ]; then\n    echo \"Starting Cloudflare Tunnel...\"\n    if [ ! -f \"cloudflared\" ]; then\n        curl -L https:\/\/github.com\/cloudflare\/cloudflared\/releases\/latest\/download\/cloudflared-linux-amd64 -o cloudflared\n        chmod +x cloudflared\n    fi\n    .\/cloudflared tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN} &\nfi\n\n# Start PHP-FPM\necho \"Starting PHP-FPM...\"\nphp-fpm -D\n\n# Start Nginx\necho \"Starting Nginx...\"\nexec nginx -g \"daemon off;\"\n' > /home/container/start.sh\n\nchmod +x /home/container/start.sh\n\necho \"Instalasi selesai.\"",
-            "container": "ghcr.io/parkervcp/yolks:nginx_php-8.2",
-            "entrypoint": "bash"
-        }
+    {
+      "name": "APP ENV",
+      "description": "Laravel environment (production/local)",
+      "env_variable": "APP_ENV",
+      "default_value": "production",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:local,production"
     },
-    "variables": [
-        {
-            "name": "Database Host",
-            "description": "Host database untuk panel (gunakan host eksternal, jangan localhost)",
-            "env_variable": "DB_HOST",
-            "default_value": "127.0.0.1",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|max:255"
-        },
-        {
-            "name": "Database Port",
-            "description": "Port database (default: 3306 untuk MySQL)",
-            "env_variable": "DB_PORT",
-            "default_value": "3306",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|numeric|between:1,65535"
-        },
-        {
-            "name": "Database Name",
-            "description": "Nama database untuk panel",
-            "env_variable": "DB_DATABASE",
-            "default_value": "panel",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|max:100"
-        },
-        {
-            "name": "Database User",
-            "description": "Username database",
-            "env_variable": "DB_USERNAME",
-            "default_value": "pterodactyl",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|max:100"
-        },
-        {
-            "name": "Database Password",
-            "description": "Password database",
-            "env_variable": "DB_PASSWORD",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|max:255"
-        },
-        {
-            "name": "APP URL",
-            "description": "URL lengkap aplikasi (contoh: https://panel.domain.com)",
-            "env_variable": "APP_URL",
-            "default_value": "http://localhost",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|url|max:255"
-        },
-        {
-            "name": "APP Environment",
-            "description": "Laravel environment (production/local)",
-            "env_variable": "APP_ENV",
-            "default_value": "production",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|in:local,production"
-        },
-        {
-            "name": "APP Debug",
-            "description": "Aktifkan debug mode (true/false) - Jangan aktifkan di production",
-            "env_variable": "APP_DEBUG",
-            "default_value": "false",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|in:true,false"
-        },
-        {
-            "name": "Web Port",
-            "description": "Port yang digunakan untuk web server",
-            "env_variable": "WEB_PORT",
-            "default_value": "8080",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|numeric|between:1024,65535"
-        },
-        {
-            "name": "Cloudflare Tunnel",
-            "description": "Aktifkan Cloudflare Tunnel (true/false)",
-            "env_variable": "CLOUDFLARE_TUNNEL",
-            "default_value": "false",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|in:true,false"
-        },
-        {
-            "name": "Cloudflare Token",
-            "description": "Token untuk Cloudflare Tunnel (hanya jika CLOUDFLARE_TUNNEL=true)",
-            "env_variable": "CLOUDFLARE_TOKEN",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string|max:255"
-        },
-        {
-            "name": "Auto Migration",
-            "description": "Jalankan migration otomatis saat startup (true/false)",
-            "env_variable": "AUTO_MIGRATION",
-            "default_value": "true",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|in:true,false"
-        }
-    ]
+    {
+      "name": "APP KEY",
+      "description": "Laravel APP KEY (akan digenerate otomatis jika kosong)",
+      "env_variable": "APP_KEY",
+      "default_value": "",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "nullable|string"
+    },
+    {
+      "name": "APP DEBUG",
+      "description": "Debug mode (true/false) - Jangan true di production",
+      "env_variable": "APP_DEBUG",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false"
+    },
+    {
+      "name": "DB HOST",
+      "description": "Host database (gunakan host eksternal, jangan localhost)",
+      "env_variable": "DB_HOST",
+      "default_value": "127.0.0.1",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string"
+    },
+    {
+      "name": "DB PORT",
+      "description": "Port database (default: 3306 untuk MySQL)",
+      "env_variable": "DB_PORT",
+      "default_value": "3306",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|numeric|between:1,65535"
+    },
+    {
+      "name": "DB DATABASE",
+      "description": "Nama database",
+      "env_variable": "DB_DATABASE",
+      "default_value": "panel",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string"
+    },
+    {
+      "name": "DB USERNAME",
+      "description": "Username database",
+      "env_variable": "DB_USERNAME",
+      "default_value": "pterodactyl",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string"
+    },
+    {
+      "name": "DB PASSWORD",
+      "description": "Password database",
+      "env_variable": "DB_PASSWORD",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string"
+    },
+    {
+      "name": "AUTO MIGRATE",
+      "description": "Jalankan migration otomatis saat startup (true/false)",
+      "env_variable": "AUTO_MIGRATE",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false"
+    },
+    {
+      "name": "CF_TUNNEL_ENABLED",
+      "description": "Aktifkan Cloudflare Tunnel (true/false)",
+      "env_variable": "CF_TUNNEL_ENABLED",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false"
+    },
+    {
+      "name": "CF_TUNNEL_TOKEN",
+      "description": "Token untuk Cloudflare Tunnel (dari Zero Trust dashboard)",
+      "env_variable": "CF_TUNNEL_TOKEN",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string"
+    },
+    {
+      "name": "READ_ONLY_FS",
+      "description": "Set true jika container dijalankan dengan read-only root FS",
+      "env_variable": "READ_ONLY_FS",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false"
+    },
+    {
+      "name": "WEB_PORT",
+      "description": "Port internal untuk web server (default: 8080)",
+      "env_variable": "WEB_PORT",
+      "default_value": "8080",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|numeric|between:1024,65535"
+    },
+    {
+      "name": "TIMEZONE",
+      "description": "Timezone untuk aplikasi (contoh: Asia/Jakarta)",
+      "env_variable": "TZ",
+      "default_value": "Asia/Jakarta",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string"
+    },
+    {
+      "name": "PHP_MEMORY_LIMIT",
+      "description": "Memory limit untuk PHP (contoh: 256M)",
+      "env_variable": "PHP_MEMORY_LIMIT",
+      "default_value": "256M",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string"
+    },
+    {
+      "name": "MAX_UPLOAD_SIZE",
+      "description": "Maximum upload file size (contoh: 100M)",
+      "env_variable": "MAX_UPLOAD_SIZE",
+      "default_value": "100M",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string"
+    }
+  ]
 }
