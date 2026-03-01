@@ -1,20 +1,39 @@
 {
     "author": "user@example.com",
     "name": "Pterodactyl Panel Web",
-    "description": "Pterodactyl Panel Web Only",
+    "description": "Menjalankan Pterodactyl Panel (Laravel) dengan Nginx + PHP-FPM. Tidak termasuk Wings, tidak bisa mengelola host.",
     "docker_images": {
         "Nginx PHP 8.2 Alpine": "ghcr.io/parkervcp/yolks:nginx_php-8.2"
     },
     "startup": "./start.sh",
     "config": {
-        "files": "{}",
-        "startup": "{\"done\":\"Starting nginx...\"}",
-        "logs": "{\"custom\":true,\"location\":\"logs/panel.log\"}",
+        "files": {
+            ".env": {
+                "parser": "file",
+                "find": {
+                    "APP_URL=": "{{server.build.default.env.APP_URL}}",
+                    "DB_HOST=": "{{server.build.default.env.DB_HOST}}",
+                    "DB_PORT=": "{{server.build.default.env.DB_PORT}}",
+                    "DB_DATABASE=": "{{server.build.default.env.DB_DATABASE}}",
+                    "DB_USERNAME=": "{{server.build.default.env.DB_USERNAME}}",
+                    "DB_PASSWORD=": "{{server.build.default.env.DB_PASSWORD}}",
+                    "APP_ENV=": "{{server.build.default.env.APP_ENV}}",
+                    "APP_DEBUG=": "{{server.build.default.env.APP_DEBUG}}"
+                }
+            }
+        },
+        "startup": {
+            "done": "Starting nginx..."
+        },
+        "logs": {
+            "custom": true,
+            "location": "logs/panel.log"
+        },
         "stop": "exit"
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/ash\napk add --no-cache git curl unzip\ncd /home/container\nif [ ! -d \"/home/container/public\" ]; then\n  git clone https://github.com/pterodactyl/panel.git .\n  export COMPOSER_ALLOW_SUPERUSER=1\n  curl -sS https://getcomposer.org/installer | php\n  php composer.phar install --no-dev --optimize-autoloader\n  cp .env.example .env\nfi\ncurl -o /home/container/start.sh https://raw.githubusercontent.com/ChikoDoe/repo/main/start.sh\nchmod +x /home/container/start.sh",
+            "script": "#!\/bin\/ash\n# Pterodactyl Panel Installation Script\n\napk add --no-cache git curl unzip\n\ncd \/home\/container\n\n# Clone panel jika belum ada\nif [ ! -f \".env\" ]; then\n    echo \"Menginstall Pterodactyl Panel...\"\n    git clone https:\/\/github.com\/pterodactyl\/panel.git .\n    \n    export COMPOSER_ALLOW_SUPERUSER=1\n    curl -sS https:\/\/getcomposer.org\/installer | php\n    php composer.phar install --no-dev --optimize-autoloader\n    \n    cp .env.example .env\n    \n    # Generate key\n    php artisan key:generate --force\nfi\n\n# Buat startup script\necho '#!/bin/bash\ncd /home/container\n\n# Export COMPOSER\nexport COMPOSER_ALLOW_SUPERUSER=1\n\n# Setup Nginx configuration\nmkdir -p /etc/nginx/http.d/\ncat > /etc/nginx/http.d/panel.conf << NGINX_CONF\nserver {\n    listen ${WEB_PORT:-8080};\n    server_name _;\n    root /home/container/public;\n    index index.php index.html;\n\n    access_log /home/container/logs/panel.log;\n    error_log /home/container/logs/error.log;\n\n    location / {\n        try_files $uri $uri/ /index.php?$args;\n    }\n\n    location ~ \\.php$ {\n        fastcgi_pass unix:/run/php-fpm.sock;\n        fastcgi_index index.php;\n        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n        include fastcgi_params;\n    }\n\n    location ~ /\\.ht {\n        deny all;\n    }\n}\nNGINX_CONF\n\n# Setup PHP-FPM\ncat > /usr/local/etc/php-fpm.d/www.conf << PHP_CONF\n[www]\nuser = container\ngroup = container\nlisten = /run/php-fpm.sock\nlisten.owner = container\nlisten.group = container\npm = dynamic\npm.max_children = 10\npm.start_servers = 2\npm.min_spare_servers = 1\npm.max_spare_servers = 5\nPHP_CONF\n\n# Setup direktori\nmkdir -p logs storage storage/logs bootstrap/cache\nchmod -R 755 storage bootstrap/cache\nchmod -R 777 storage/logs logs\n\n# Setup environment variables dari file config\nif [ -f .env ]; then\n    # Update .env dengan environment variables dari panel\n    if [ ! -z \"$APP_URL\" ]; then\n        sed -i \"s|APP_URL=.*|APP_URL=${APP_URL}|\" .env\n    fi\n    if [ ! -z \"$DB_HOST\" ]; then\n        sed -i \"s|DB_HOST=.*|DB_HOST=${DB_HOST}|\" .env\n    fi\n    if [ ! -z \"$DB_PORT\" ]; then\n        sed -i \"s|DB_PORT=.*|DB_PORT=${DB_PORT}|\" .env\n    fi\n    if [ ! -z \"$DB_DATABASE\" ]; then\n        sed -i \"s|DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE}|\" .env\n    fi\n    if [ ! -z \"$DB_USERNAME\" ]; then\n        sed -i \"s|DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME}|\" .env\n    fi\n    if [ ! -z \"$DB_PASSWORD\" ]; then\n        sed -i \"s|DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|\" .env\n    fi\n    if [ ! -z \"$APP_ENV\" ]; then\n        sed -i \"s|APP_ENV=.*|APP_ENV=${APP_ENV}|\" .env\n    fi\n    if [ ! -z \"$APP_DEBUG\" ]; then\n        sed -i \"s|APP_DEBUG=.*|APP_DEBUG=${APP_DEBUG}|\" .env\n    fi\n    \n    # Cache konfigurasi\n    php artisan config:cache\n    php artisan route:cache\n    php artisan view:cache\n    \n    # Jalankan migration jika AUTO_MIGRATION=true\n    if [ \"${AUTO_MIGRATION}\" = \"true\" ]; then\n        php artisan migrate --force\n    fi\nfi\n\n# Start Cloudflare Tunnel jika diaktifkan\nif [ \"${CLOUDFLARE_TUNNEL}\" = \"true\" ] && [ ! -z \"${CLOUDFLARE_TOKEN}\" ]; then\n    echo \"Starting Cloudflare Tunnel...\"\n    if [ ! -f \"cloudflared\" ]; then\n        curl -L https:\/\/github.com\/cloudflare\/cloudflared\/releases\/latest\/download\/cloudflared-linux-amd64 -o cloudflared\n        chmod +x cloudflared\n    fi\n    .\/cloudflared tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN} &\nfi\n\n# Start PHP-FPM\necho \"Starting PHP-FPM...\"\nphp-fpm -D\n\n# Start Nginx\necho \"Starting Nginx...\"\nexec nginx -g \"daemon off;\"\n' > /home/container/start.sh\n\nchmod +x /home/container/start.sh\n\necho \"Instalasi selesai.\"",
             "container": "ghcr.io/parkervcp/yolks:nginx_php-8.2",
             "entrypoint": "bash"
         }
@@ -22,11 +41,111 @@
     "variables": [
         {
             "name": "Database Host",
+            "description": "Host database untuk panel (gunakan host eksternal, jangan localhost)",
             "env_variable": "DB_HOST",
             "default_value": "127.0.0.1",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string"
+            "rules": "required|string|max:255"
+        },
+        {
+            "name": "Database Port",
+            "description": "Port database (default: 3306 untuk MySQL)",
+            "env_variable": "DB_PORT",
+            "default_value": "3306",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|numeric|between:1,65535"
+        },
+        {
+            "name": "Database Name",
+            "description": "Nama database untuk panel",
+            "env_variable": "DB_DATABASE",
+            "default_value": "panel",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:100"
+        },
+        {
+            "name": "Database User",
+            "description": "Username database",
+            "env_variable": "DB_USERNAME",
+            "default_value": "pterodactyl",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:100"
+        },
+        {
+            "name": "Database Password",
+            "description": "Password database",
+            "env_variable": "DB_PASSWORD",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:255"
+        },
+        {
+            "name": "APP URL",
+            "description": "URL lengkap aplikasi (contoh: https://panel.domain.com)",
+            "env_variable": "APP_URL",
+            "default_value": "http://localhost",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|url|max:255"
+        },
+        {
+            "name": "APP Environment",
+            "description": "Laravel environment (production/local)",
+            "env_variable": "APP_ENV",
+            "default_value": "production",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:local,production"
+        },
+        {
+            "name": "APP Debug",
+            "description": "Aktifkan debug mode (true/false) - Jangan aktifkan di production",
+            "env_variable": "APP_DEBUG",
+            "default_value": "false",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:true,false"
+        },
+        {
+            "name": "Web Port",
+            "description": "Port yang digunakan untuk web server",
+            "env_variable": "WEB_PORT",
+            "default_value": "8080",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|numeric|between:1024,65535"
+        },
+        {
+            "name": "Cloudflare Tunnel",
+            "description": "Aktifkan Cloudflare Tunnel (true/false)",
+            "env_variable": "CLOUDFLARE_TUNNEL",
+            "default_value": "false",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:true,false"
+        },
+        {
+            "name": "Cloudflare Token",
+            "description": "Token untuk Cloudflare Tunnel (hanya jika CLOUDFLARE_TUNNEL=true)",
+            "env_variable": "CLOUDFLARE_TOKEN",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:255"
+        },
+        {
+            "name": "Auto Migration",
+            "description": "Jalankan migration otomatis saat startup (true/false)",
+            "env_variable": "AUTO_MIGRATION",
+            "default_value": "true",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:true,false"
         }
     ]
 }
